@@ -1,28 +1,52 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Plus, FolderKanban, Users, Bug } from 'lucide-react';
-import { Card, CardContent } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
+import { Plus, FolderKanban, Search } from 'lucide-react';
+import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/Skeleton';
+import { ProjectCard } from '../components/projects/ProjectCard';
+import { ProjectModal } from '../components/projects/ProjectModal';
+import { useData } from '../contexts/DataContext';
+import { useToast } from '../components/ui/Toast';
 import type { Project } from '../types';
 
-const mockProjects: Project[] = [
-  { id: '1', name: 'Frontend App', description: 'React-based dashboard application', status: 'active', createdAt: '2026-01-15', bugCount: 23, memberCount: 4 },
-  { id: '2', name: 'API Gateway', description: 'Microservices API gateway service', status: 'active', createdAt: '2026-02-01', bugCount: 12, memberCount: 3 },
-  { id: '3', name: 'Mobile App', description: 'React Native mobile application', status: 'active', createdAt: '2026-03-10', bugCount: 31, memberCount: 5 },
-  { id: '4', name: 'Legacy System', description: 'Legacy monolith migration project', status: 'archived', createdAt: '2025-11-20', bugCount: 5, memberCount: 2 },
-  { id: '5', name: 'Data Pipeline', description: 'Real-time data processing pipeline', status: 'active', createdAt: '2026-04-05', bugCount: 8, memberCount: 3 },
-  { id: '6', name: 'Design System', description: 'Shared UI component library', status: 'active', createdAt: '2026-05-01', bugCount: 15, memberCount: 2 },
-];
+const statusTabs = ['all', 'active', 'completed', 'archived'] as const;
 
 export default function Projects() {
+  const { projects, addProject, updateProject, deleteProject } = useData();
+  const { addToast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'archived'>('all');
+  const [search, setSearch] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | undefined>();
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 500);
+    const t = setTimeout(() => setLoading(false), 400);
     return () => clearTimeout(t);
   }, []);
+
+  const filtered = projects.filter(p => {
+    if (filter !== 'all' && p.status !== filter) return false;
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.description.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const handleCreate = (data: any) => {
+    addProject(data);
+    addToast('success', 'Project created successfully');
+  };
+
+  const handleEdit = (data: any) => {
+    if (editingProject) {
+      updateProject(editingProject.id, data);
+      addToast('success', 'Project updated successfully');
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    deleteProject(id);
+    addToast('success', 'Project deleted successfully');
+  };
 
   return (
     <div>
@@ -31,58 +55,88 @@ export default function Projects() {
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Projects</h1>
           <p className="text-[var(--text-secondary)]">Manage your development projects</p>
         </div>
-        <Button>
+        <Button onClick={() => { setEditingProject(undefined); setShowModal(true); }}>
           <Plus className="h-4 w-4" /> New Project
         </Button>
       </div>
 
+      <Card className="mb-6">
+        <div className="p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="flex gap-1">
+            {statusTabs.map(s => (
+              <button
+                key={s}
+                onClick={() => setFilter(s)}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                  filter === s
+                    ? 'bg-blue-500/10 text-blue-400'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#21262D]'
+                }`}
+              >
+                {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div className="relative flex-1 max-w-xs ml-auto">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-tertiary)]" />
+            <input
+              type="text"
+              placeholder="Search projects..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+            />
+          </div>
+        </div>
+      </Card>
+
       {loading ? (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="rounded-xl border border-[var(--border-primary)] p-6 space-y-4">
+            <div key={i} className="rounded-xl border border-[var(--border-primary)] p-5 space-y-4">
+              <Skeleton className="h-10 w-10 rounded-lg" />
               <Skeleton className="h-5 w-32" />
               <Skeleton className="h-4 w-full" />
-              <div className="flex gap-4">
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-1.5 w-full rounded-full" />
+              <div className="flex justify-between">
+                <Skeleton className="h-4 w-20" />
+                <div className="flex">
+                  {Array.from({ length: 3 }).map((_, j) => (
+                    <Skeleton key={j} className="h-7 w-7 rounded-full -ml-2 first:ml-0" />
+                  ))}
+                </div>
               </div>
             </div>
           ))}
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16">
+          <FolderKanban className="h-12 w-12 text-[var(--text-tertiary)] mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-[var(--text-primary)] mb-1">No projects found</h3>
+          <p className="text-sm text-[var(--text-secondary)] mb-4">Get started by creating your first project.</p>
+          <Button onClick={() => { setEditingProject(undefined); setShowModal(true); }}>
+            <Plus className="h-4 w-4" /> Create Project
+          </Button>
+        </div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mockProjects.map((project, index) => (
-            <motion.div
+          {filtered.map(project => (
+            <ProjectCard
               key={project.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-            >
-              <Card variant="interactive" className="h-full">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                      <FolderKanban className="h-5 w-5 text-blue-400" />
-                    </div>
-                    <Badge value={project.status} variant="status" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-1">{project.name}</h3>
-                  <p className="text-sm text-[var(--text-secondary)] mb-4">{project.description}</p>
-                  <div className="flex items-center gap-4 text-xs text-[var(--text-tertiary)]">
-                    <span className="flex items-center gap-1">
-                      <Bug className="h-3.5 w-3.5" /> {project.bugCount} bugs
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3.5 w-3.5" /> {project.memberCount} members
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
+              project={project}
+              onEdit={(p) => { setEditingProject(p); setShowModal(true); }}
+              onDelete={handleDelete}
+            />
           ))}
         </div>
       )}
+
+      <ProjectModal
+        isOpen={showModal}
+        onClose={() => { setShowModal(false); setEditingProject(undefined); }}
+        onSubmit={editingProject ? handleEdit : handleCreate}
+        project={editingProject}
+      />
     </div>
   );
 }
