@@ -8,14 +8,14 @@ import {
   Users,
   Settings,
   ChevronLeft,
-  Code2,
+  Cpu,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/dashboard/projects', icon: FolderKanban, label: 'Projects' },
-  { to: '/dashboard/bugs', icon: Bug, label: 'Bugs' },
+  { to: '/dashboard/projects', icon: FolderKanban, label: 'Repositories' },
+  { to: '/dashboard/bugs', icon: Bug, label: 'Issues' },
   { to: '/dashboard/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/dashboard/team', icon: Users, label: 'Team' },
   { to: '/dashboard/settings', icon: Settings, label: 'Settings' },
@@ -41,15 +41,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             className="flex items-center gap-2"
           >
             <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
-              <Code2 className="h-5 w-5 text-white" />
+              <Cpu className="h-5 w-5 text-white" />
             </div>
-            <span className="font-bold text-lg text-[var(--text-primary)] font-mono">DevFlow</span>
+            <span className="font-bold text-lg text-[var(--text-primary)] font-mono">CodePilot</span>
           </motion.div>
         )}
         {collapsed && (
           <div className="mx-auto">
             <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
-              <Code2 className="h-5 w-5 text-white" />
+              <Cpu className="h-5 w-5 text-white" />
             </div>
           </div>
         )}

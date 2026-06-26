@@ -21,7 +21,7 @@ export function Navbar() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-tertiary)]" />
           <input
             type="text"
-            placeholder="Search bugs, projects, or people..."
+            placeholder="Search issues, repositories, or people..."
             className="w-full pl-10 pr-4 py-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
           />
           <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-mono text-[var(--text-tertiary)] bg-[#21262D] rounded border border-[var(--border-primary)]">
@@ -77,14 +77,14 @@ export function Navbar() {
                       notifications.map(n => (
                         <div
                           key={n.id}
-                          onClick={() => { markNotificationRead(n.id); if (n.bugId) navigate(`/dashboard/bugs/${n.bugId}`); setShowNotifications(false); }}
+                          onClick={() => { markNotificationRead(n.id); if (n.issueId) navigate(`/dashboard/bugs/${n.issueId}`); setShowNotifications(false); }}
                           className={`p-4 border-b border-[var(--border-secondary)] cursor-pointer transition-colors ${!n.read ? 'bg-blue-500/5 hover:bg-blue-500/10' : 'hover:bg-[#21262D]'}`}
                         >
                           <div className="flex items-start gap-3">
                             <div className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${!n.read ? 'bg-blue-500' : 'bg-transparent'}`} />
                             <div>
                               <p className={`text-sm ${!n.read ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]'}`}>{n.message}</p>
-                              <p className="text-xs text-[var(--text-tertiary)] mt-1">{formatTimeAgo(n.timestamp)}</p>
+                              <p className="text-xs text-[var(--text-tertiary)] mt-1">{formatTimeAgo(n.createdAt)}</p>
                             </div>
                           </div>
                         </div>

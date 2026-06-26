@@ -20,10 +20,11 @@ export default function Signup() {
     setLoading(true);
     try {
       await signup(form.email, form.password, form.name);
-      addToast('success', 'Account created! Welcome to DevFlow.');
+      addToast('success', 'Account created! Welcome to CodePilot.');
       navigate('/dashboard');
-    } catch {
-      addToast('error', 'Failed to create account. Please try again.');
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to create account. Please try again.';
+      addToast(msg.includes('confirmation') ? 'info' : 'error', msg);
     } finally {
       setLoading(false);
     }
@@ -41,7 +42,7 @@ export default function Signup() {
             <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
               <Code2 className="h-5 w-5 text-white" />
             </div>
-            <span className="font-bold text-lg text-[var(--text-primary)] font-mono">DevFlow</span>
+            <span className="font-bold text-lg text-[var(--text-primary)] font-mono">CodePilot AI</span>
           </Link>
 
           <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-2">Create your account</h1>

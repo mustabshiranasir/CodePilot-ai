@@ -43,6 +43,16 @@ export function getStatusColor(status: string): string {
   }
 }
 
+export function getSeverityColor(severity: string): string {
+  switch (severity) {
+    case 'critical': return 'bg-red-500/10 text-red-400 border-red-500/30';
+    case 'high': return 'bg-orange-500/10 text-orange-400 border-orange-500/30';
+    case 'medium': return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30';
+    case 'low': return 'bg-green-500/10 text-green-400 border-green-500/30';
+    default: return 'bg-gray-500/10 text-gray-400 border-gray-500/30';
+  }
+}
+
 export function getPriorityColor(priority: string): string {
   switch (priority) {
     case 'critical': return 'text-red-400';

@@ -22,8 +22,8 @@ export default function Login() {
       await login(form.email, form.password);
       addToast('success', 'Welcome back! Redirecting to dashboard...');
       navigate('/dashboard');
-    } catch {
-      addToast('error', 'Failed to sign in. Please check your credentials.');
+    } catch (err: any) {
+      addToast('error', err?.message || 'Failed to sign in. Please check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -57,7 +57,7 @@ export default function Login() {
             <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
               <Code2 className="h-5 w-5 text-white" />
             </div>
-            <span className="font-bold text-lg text-[var(--text-primary)] font-mono">DevFlow</span>
+            <span className="font-bold text-lg text-[var(--text-primary)] font-mono">CodePilot AI</span>
           </Link>
 
           <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-2">Sign in to your account</h1>

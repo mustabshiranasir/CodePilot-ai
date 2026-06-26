@@ -1,57 +1,132 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from '../types';
+import { supabase } from '../lib/supabase';
+
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const MOCK_USER: User = {
-  id: '1',
-  email: 'demo@devflow.dev',
-  name: 'Alex Chen',
-  avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex',
-};
+async function fetchProfile(userId: string): Promise<User | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (error || !data) {
+    const { data: authUser } = await supabase.auth.getUser();
+    if (authUser?.user) {
+      return {
+        id: authUser.user.id,
+        email: authUser.user.email || '',
+        name: authUser.user.user_metadata?.name as string || authUser.user.email?.split('@')[0] || 'Developer',
+        avatar: '',
+        role: 'Developer',
+      };
+    }
+    return null;
+  }
+
+  return {
+    id: data.id,
+    email: data.email || '',
+    name: data.name || data.email?.split('@')[0] || 'Developer',
+    avatar: data.avatar || '',
+    role: data.role || 'Developer',
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const stored = localStorage.getItem('devflow_user');
-    if (stored) {
-      setUser(JSON.parse(stored));
+  const handleSession = useCallback(async (userId: string) => {
+    const profile = await fetchProfile(userId);
+    if (profile) {
+      setUser(profile);
+    } else {
+      setUser({
+        id: userId,
+        email: '',
+        name: 'Developer',
+        role: 'Developer',
+      });
     }
     setLoading(false);
   }, []);
 
-  const login = async (email: string, _password: string) => {
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        handleSession(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        handleSession(session.user.id);
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [handleSession]);
+
+  function checkRateLimit(err: any) {
+    if (err?.status === 429 || err?.message?.includes('429') || err?.code === '429') {
+      throw new Error('Too many attempts. Please wait 60 seconds and try again.');
+    }
+  }
+
+  const login = async (email: string, password: string) => {
     setLoading(true);
-    await new Promise(r => setTimeout(r, 800));
-    const newUser = { ...MOCK_USER, email };
-    setUser(newUser);
-    localStorage.setItem('devflow_user', JSON.stringify(newUser));
-    setLoading(false);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setLoading(false);
+      checkRateLimit(error);
+      throw error;
+    }
   };
 
-  const signup = async (email: string, _password: string, name: string) => {
+  const signup = async (email: string, password: string, name: string) => {
     setLoading(true);
-    await new Promise(r => setTimeout(r, 800));
-    const newUser = { ...MOCK_USER, email, name };
-    setUser(newUser);
-    localStorage.setItem('devflow_user', JSON.stringify(newUser));
-    setLoading(false);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name } },
+    });
+
+    if (error) {
+      setLoading(false);
+      checkRateLimit(error);
+      throw error;
+    }
+
+    if (data?.session?.user) {
+      await handleSession(data.session.user.id);
+    } else if (data?.user) {
+      setLoading(false);
+      throw new Error('Check your email for confirmation link, then sign in.');
+    } else {
+      setLoading(false);
+    }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem('devflow_user');
   };
 
   return (

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Save, User, Bell, Shield, Palette, Key, Smartphone, Moon, Sun } from 'lucide-react';
+import { Save, User, Bell, Shield, Palette, Key, Smartphone, Moon, Sun, Loader2 } from 'lucide-react';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -8,6 +8,8 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../components/ui/Toast';
 import { useAuth } from '../contexts/AuthContext';
+import { settingsService } from '../lib/services/settings';
+import type { UserSettings } from '../lib/services/settings';
 
 const settingsSections = [
   { id: 'profile', icon: User, label: 'Profile' },
@@ -19,30 +21,79 @@ const settingsSections = [
 ];
 
 export default function Settings() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, setFontSize: applyFontSize, setCompactMode: applyCompactMode } = useTheme();
   const { addToast } = useToast();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState('profile');
-  const [form, setForm] = useState({ name: user?.name || '', email: user?.email || '', role: 'Lead Developer', location: 'San Francisco, CA' });
+  const [settings, setSettings] = useState<Partial<UserSettings>>({
+    name: user?.name || '',
+    email: user?.email || '',
+    role: 'Developer',
+    location: '',
+    themePreference: 'dark',
+    fontSize: 'Medium',
+    compactMode: false,
+    notificationPrefs: {},
+  });
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(t);
-  }, []);
+    if (!user?.id) { setLoading(false); return; }
+    settingsService.get(user.id)
+      .then(data => {
+        setSettings(prev => ({ ...prev, ...data }));
+        if (data.themePreference && data.themePreference !== theme) {
+          toggleTheme();
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [user?.id]);
 
-  const handleSave = (section: string) => {
-    addToast('success', `${section.charAt(0).toUpperCase() + section.slice(1)} settings saved`);
+  const toggleNotif = (key: string) => {
+    setSettings(prev => ({
+      ...prev,
+      notificationPrefs: { ...prev.notificationPrefs, [key]: !prev.notificationPrefs?.[key] },
+    }));
   };
 
-  const notificationPrefs = [
-    { label: 'Bug assigned to you', key: 'assigned', enabled: true },
-    { label: 'Status changes on your bugs', key: 'status', enabled: true },
-    { label: 'Comments on your bugs', key: 'comments', enabled: true },
-    { label: 'Mentions in comments', key: 'mentions', enabled: true },
-    { label: 'Weekly digest', key: 'digest', enabled: false },
-    { label: 'Product updates', key: 'updates', enabled: false },
+  const notifList = [
+    { label: 'Issue assigned to you', key: 'assigned' },
+    { label: 'Status changes on your issues', key: 'status' },
+    { label: 'Comments on your issues', key: 'comments' },
+    { label: 'Mentions in comments', key: 'mentions' },
+    { label: 'Weekly digest', key: 'digest' },
+    { label: 'Product updates', key: 'updates' },
   ];
+
+  const handleSave = async (section: string) => {
+    if (!user?.id) { addToast('error', 'You must be logged in'); return; }
+    setSaving(section);
+    try {
+      if (section === 'profile') {
+        await settingsService.update(user.id, {
+          name: settings.name,
+          email: settings.email,
+          role: settings.role,
+          location: settings.location,
+        });
+      } else if (section === 'notifications') {
+        await settingsService.update(user.id, { notificationPrefs: settings.notificationPrefs });
+      } else if (section === 'appearance') {
+        await settingsService.update(user.id, {
+          themePreference: theme as 'dark' | 'light',
+          fontSize: settings.fontSize,
+          compactMode: settings.compactMode,
+        });
+      }
+      addToast('success', `${section.charAt(0).toUpperCase() + section.slice(1)} settings saved`);
+    } catch (err: any) {
+      addToast('error', err?.message || 'Failed to save settings');
+    } finally {
+      setSaving(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -80,16 +131,23 @@ export default function Settings() {
                 <CardHeader><h3 className="text-lg font-semibold text-[var(--text-primary)]">Profile Settings</h3><p className="text-sm text-[var(--text-secondary)] mt-1">Update your personal information and public profile</p></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center gap-4 mb-6">
-                    <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold">AC</div>
+                    <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold">
+                      {(settings.name || 'A').charAt(0).toUpperCase()}
+                    </div>
                     <div><Button variant="secondary" size="sm">Change Avatar</Button></div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input label="Full Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-                    <Input label="Email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-                    <Input label="Role" value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} />
-                    <Input label="Location" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} />
+                    <Input label="Full Name" value={settings.name || ''} onChange={e => setSettings(s => ({ ...s, name: e.target.value }))} />
+                    <Input label="Email" type="email" value={settings.email || ''} onChange={e => setSettings(s => ({ ...s, email: e.target.value }))} />
+                    <Input label="Role" value={settings.role || ''} onChange={e => setSettings(s => ({ ...s, role: e.target.value }))} />
+                    <Input label="Location" value={settings.location || ''} onChange={e => setSettings(s => ({ ...s, location: e.target.value }))} />
                   </div>
-                  <div className="pt-4"><Button onClick={() => handleSave('profile')}><Save className="h-4 w-4" /> Save Changes</Button></div>
+                  <div className="pt-4">
+                    <Button onClick={() => handleSave('profile')} disabled={saving === 'profile'}>
+                      {saving === 'profile' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      {saving === 'profile' ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -98,15 +156,20 @@ export default function Settings() {
               <Card>
                 <CardHeader><h3 className="text-lg font-semibold text-[var(--text-primary)]">Notification Preferences</h3><p className="text-sm text-[var(--text-secondary)] mt-1">Choose what notifications you receive</p></CardHeader>
                 <CardContent className="space-y-1">
-                  {notificationPrefs.map(pref => (
+                  {notifList.map(pref => (
                     <div key={pref.key} className="flex items-center justify-between py-3 border-b border-[var(--border-secondary)] last:border-0">
                       <span className="text-sm text-[var(--text-primary)]">{pref.label}</span>
-                      <button className={`relative h-6 w-11 rounded-full transition-colors ${pref.enabled ? 'bg-blue-600' : 'bg-[#21262D]'}`}>
-                        <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${pref.enabled ? 'translate-x-5' : ''}`} />
+                      <button onClick={() => toggleNotif(pref.key)} className={`relative h-6 w-11 rounded-full transition-colors cursor-pointer ${settings.notificationPrefs?.[pref.key] ? 'bg-blue-600' : 'bg-[#21262D]'}`}>
+                        <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${settings.notificationPrefs?.[pref.key] ? 'translate-x-5' : ''}`} />
                       </button>
                     </div>
                   ))}
-                  <div className="pt-4"><Button onClick={() => handleSave('notifications')}><Save className="h-4 w-4" /> Save Preferences</Button></div>
+                  <div className="pt-4">
+                    <Button onClick={() => handleSave('notifications')} disabled={saving === 'notifications'}>
+                      {saving === 'notifications' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      {saving === 'notifications' ? 'Saving...' : 'Save Preferences'}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -132,7 +195,8 @@ export default function Settings() {
                     <label className="block text-sm font-medium text-[var(--text-primary)] mb-3">Font Size</label>
                     <div className="flex gap-2">
                       {['Small', 'Medium', 'Large'].map(s => (
-                        <button key={s} className="px-4 py-2 rounded-lg border border-[var(--border-primary)] text-sm text-[var(--text-secondary)] hover:border-blue-500/30 hover:text-[var(--text-primary)] transition-colors">{s}</button>
+                        <button key={s} onClick={() => { setSettings(p => ({ ...p, fontSize: s })); applyFontSize(s); }}
+                          className={`px-4 py-2 rounded-lg border text-sm transition-colors ${settings.fontSize === s ? 'border-blue-500/30 bg-blue-500/10 text-blue-400' : 'border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-blue-500/30 hover:text-[var(--text-primary)]'}`}>{s}</button>
                       ))}
                     </div>
                   </div>
@@ -141,9 +205,16 @@ export default function Settings() {
                       <p className="text-sm font-medium text-[var(--text-primary)]">Compact Mode</p>
                       <p className="text-xs text-[var(--text-tertiary)]">Reduce spacing for a denser layout</p>
                     </div>
-                    <button className="relative h-6 w-11 rounded-full bg-[#21262D]"><span className="absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white" /></button>
+                    <button onClick={() => { const next = !settings.compactMode; setSettings(p => ({ ...p, compactMode: next })); applyCompactMode(next); }} className={`relative h-6 w-11 rounded-full transition-colors cursor-pointer ${settings.compactMode ? 'bg-blue-600' : 'bg-[#21262D]'}`}>
+                      <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${settings.compactMode ? 'translate-x-5' : ''}`} />
+                    </button>
                   </div>
-                  <div className="pt-2"><Button onClick={() => handleSave('appearance')}><Save className="h-4 w-4" /> Save Preferences</Button></div>
+                  <div className="pt-2">
+                    <Button onClick={() => handleSave('appearance')} disabled={saving === 'appearance'}>
+                      {saving === 'appearance' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      {saving === 'appearance' ? 'Saving...' : 'Save Preferences'}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )}

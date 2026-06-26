@@ -10,16 +10,15 @@ interface CommentSectionProps {
   bugId: string;
 }
 
-const mentionableUsers = ['Alex C.', 'Sarah K.', 'Marcus J.', 'Emily R.', 'David W.', 'Lisa P.'];
-
 export function CommentSection({ bugId }: CommentSectionProps) {
-  const { comments, addComment, deleteComment } = useData();
+  const { comments, issues, addComment, deleteComment } = useData();
   const { user } = useAuth();
   const [content, setContent] = useState('');
   const [showMentions, setShowMentions] = useState(false);
   const [mentionSearch, setMentionSearch] = useState('');
 
-  const bugComments = comments.filter(c => c.bugId === bugId);
+  const bugComments = comments.filter(c => c.issueId === bugId);
+  const mentionableUsers = [...new Set(issues.map(i => i.assignee).filter(Boolean))];
 
   const handleInputChange = (value: string) => {
     setContent(value);
@@ -58,36 +57,40 @@ export function CommentSection({ bugId }: CommentSectionProps) {
         <MessageSquare className="h-4 w-4" /> Comments ({bugComments.length})
       </h3>
 
-      <div className="space-y-3">
-        {bugComments.map((comment, index) => (
-          <motion.div
-            key={comment.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.03 }}
-            className="p-3 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]"
-          >
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="flex items-center gap-2">
-                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-[8px] font-bold">
-                  {comment.author.split(' ').map(n => n[0]).join('')}
+      {bugComments.length === 0 ? (
+        <p className="text-sm text-[var(--text-tertiary)]">No comments yet</p>
+      ) : (
+        <div className="space-y-3">
+          {bugComments.map((comment, index) => (
+            <motion.div
+              key={comment.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.03 }}
+              className="p-3 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] group"
+            >
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-[8px] font-bold">
+                    {comment.author.split(' ').map((n: string) => n[0]).join('')}
+                  </div>
+                  <span className="text-sm font-medium text-[var(--text-primary)]">{comment.author}</span>
+                  <span className="text-xs text-[var(--text-tertiary)]">{formatTimeAgo(comment.createdAt)}</span>
                 </div>
-                <span className="text-sm font-medium text-[var(--text-primary)]">{comment.author}</span>
-                <span className="text-xs text-[var(--text-tertiary)]">{formatTimeAgo(comment.createdAt)}</span>
+                <button
+                  onClick={() => deleteComment(comment.id)}
+                  className="p-1 rounded hover:bg-[#21262D] text-[var(--text-tertiary)] hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <button
-                onClick={() => deleteComment(comment.id)}
-                className="p-1 rounded hover:bg-[#21262D] text-[var(--text-tertiary)] hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
-              {renderContent(comment.content, comment.mentions)}
-            </p>
-          </motion.div>
-        ))}
-      </div>
+              <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+                {renderContent(comment.content, comment.mentions)}
+              </p>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       <div className="relative">
         <div className="flex gap-2">
@@ -127,7 +130,7 @@ export function CommentSection({ bugId }: CommentSectionProps) {
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#21262D] transition-colors"
                 >
                   <div className="h-5 w-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-[7px] font-bold">
-                    {name.split(' ').map(n => n[0]).join('')}
+                    {name.split(' ').map((n: string) => n[0]).join('')}
                   </div>
                   {name}
                 </button>
@@ -143,7 +146,7 @@ export function CommentSection({ bugId }: CommentSectionProps) {
 function renderContent(content: string, mentions: string[]) {
   const parts = content.split(/(@\w+[\s\w.]*)/g);
   return parts.map((part, i) => {
-    const matched = mentions.find(m => part.includes(`@${m}`));
+    const matched = mentions.find((m: string) => part.includes(`@${m}`));
     if (matched) {
       return <span key={i} className="text-blue-400 font-medium">{part}</span>;
     }

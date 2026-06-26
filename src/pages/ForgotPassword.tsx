@@ -5,16 +5,29 @@ import { Code2, Mail, ArrowLeft, Send } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useToast } from '../components/ui/Toast';
+import { supabase } from '../lib/supabase';
 
 export default function ForgotPassword() {
   const { addToast } = useToast();
   const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    addToast('success', 'Reset link sent! Check your email.');
-    setSent(true);
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/login`,
+      });
+      if (error) throw error;
+      addToast('success', 'Reset link sent! Check your email.');
+      setSent(true);
+    } catch {
+      addToast('error', 'Failed to send reset link. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -29,7 +42,7 @@ export default function ForgotPassword() {
             <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
               <Code2 className="h-5 w-5 text-white" />
             </div>
-            <span className="font-bold text-lg text-[var(--text-primary)] font-mono">DevFlow</span>
+            <span className="font-bold text-lg text-[var(--text-primary)] font-mono">CodePilot AI</span>
           </Link>
 
           {!sent ? (
@@ -63,7 +76,7 @@ export default function ForgotPassword() {
               onChange={e => setEmail(e.target.value)}
               required
             />
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="w-full" loading={loading}>
               Send Reset Link <Send className="h-4 w-4" />
             </Button>
           </form>
