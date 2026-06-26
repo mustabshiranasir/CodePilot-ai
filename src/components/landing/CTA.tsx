@@ -17,11 +17,11 @@ export function CTA() {
           viewport={{ once: true }}
           className="rounded-2xl border border-blue-500/20 bg-gradient-to-b from-blue-500/5 to-transparent p-12 md:p-16"
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-[var(--text-primary)] mb-4">
-            Ready to transform your bug tracking?
-          </h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-[var(--text-primary)] mb-4">
+              Ready to automate your code analysis?
+            </h2>
           <p className="text-lg text-[var(--text-secondary)] mb-8 max-w-2xl mx-auto">
-            Join thousands of developers who are already shipping better software with DevFlow.
+            Join thousands of developers who are already shipping better software with CodePilot AI.
             Start your free trial today — no credit card required.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

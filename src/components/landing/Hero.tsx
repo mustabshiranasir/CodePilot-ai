@@ -34,7 +34,7 @@ export function Hero() {
           <span className="text-[var(--text-primary)]">Ship better software </span>
           <br />
           <span className="bg-gradient-to-r from-blue-400 via-blue-500 to-purple-500 bg-clip-text text-transparent">
-            with AI-powered bug tracking
+            with AI-powered code analysis
           </span>
         </motion.h1>
 
@@ -44,7 +44,7 @@ export function Hero() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="text-lg md:text-xl text-[var(--text-secondary)] max-w-2xl mx-auto mb-8 leading-relaxed"
         >
-          DevFlow combines intelligent bug detection, automated workflows, and real-time collaboration
+          CodePilot AI combines AI-powered code analysis, automated issue detection, and smart team collaboration
           to help your team ship faster with confidence.
         </motion.p>
 

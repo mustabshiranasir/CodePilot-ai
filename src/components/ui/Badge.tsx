@@ -1,8 +1,8 @@
 import { cn } from '../../lib/utils';
-import { getStatusColor, getPriorityColor } from '../../lib/utils';
+import { getStatusColor, getPriorityColor, getSeverityColor } from '../../lib/utils';
 
 interface BadgeProps {
-  variant?: 'status' | 'priority' | 'default';
+  variant?: 'status' | 'priority' | 'severity' | 'default';
   value: string;
   className?: string;
 }
@@ -12,6 +12,8 @@ export function Badge({ variant = 'default', value, className }: BadgeProps) {
     ? getStatusColor(value)
     : variant === 'priority'
     ? getPriorityColor(value)
+    : variant === 'severity'
+    ? getSeverityColor(value)
     : 'bg-[#21262D] text-[#8B949E] border border-[#30363D]';
 
   return (

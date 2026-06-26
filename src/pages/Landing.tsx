@@ -23,7 +23,7 @@ export default function Landing() {
             <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
               <Code2 className="h-5 w-5 text-white" />
             </div>
-            <span className="font-bold text-lg text-[var(--text-primary)] font-mono">DevFlow</span>
+            <span className="font-bold text-lg text-[var(--text-primary)] font-mono">CodePilot AI</span>
           </div>
 
           <div className="hidden md:flex items-center gap-8">
@@ -71,9 +71,9 @@ export default function Landing() {
               <div className="h-6 w-6 rounded bg-blue-600 flex items-center justify-center">
                 <Code2 className="h-4 w-4 text-white" />
               </div>
-              <span className="text-sm font-bold text-[var(--text-primary)] font-mono">DevFlow</span>
+              <span className="text-sm font-bold text-[var(--text-primary)] font-mono">CodePilot AI</span>
             </div>
-            <p className="text-xs text-[var(--text-tertiary)]">&copy; 2026 DevFlow. All rights reserved.</p>
+            <p className="text-xs text-[var(--text-tertiary)]">&copy; 2026 CodePilot AI. All rights reserved.</p>
             <div className="flex gap-6">
               <a href="#" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">Privacy</a>
               <a href="#" className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">Terms</a>
