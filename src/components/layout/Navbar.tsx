@@ -1,19 +1,18 @@
 import { useState } from 'react';
-import { Search, Bell, Moon, Sun, LogOut, User as UserIcon } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Bell, Moon, Sun, LogOut, User as UserIcon, CheckCheck } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useData } from '../../contexts/DataContext';
+import { formatTimeAgo } from '../../lib/utils';
 
 export function Navbar() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { notifications, unreadCount, markNotificationRead, clearNotifications } = useData();
+  const navigate = useNavigate();
   const [showMenu, setShowMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-
-  const notifications = [
-    { id: 1, text: 'New bug reported in Project Alpha', time: '2m ago' },
-    { id: 2, text: 'Bug #1424 has been resolved', time: '15m ago' },
-    { id: 3, text: 'Alex assigned you to Bug #1427', time: '1h ago' },
-  ];
 
   return (
     <header className="h-16 fixed top-0 right-0 left-72 z-30 border-b border-[var(--border-primary)] bg-[var(--bg-primary)]/80 backdrop-blur-xl">
@@ -44,26 +43,53 @@ export function Navbar() {
               className="relative p-2 rounded-lg hover:bg-[#21262D] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
             >
               <Bell className="h-5 w-5" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-blue-500" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
 
             {showNotifications && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
                 <div className="absolute right-0 top-12 w-80 rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-2xl z-50">
-                  <div className="p-4 border-b border-[var(--border-primary)]">
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Notifications</h3>
+                  <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                      Notifications
+                      {unreadCount > 0 && (
+                        <span className="ml-2 text-xs font-mono text-blue-400">({unreadCount} new)</span>
+                      )}
+                    </h3>
+                    {notifications.length > 0 && (
+                      <button onClick={clearNotifications} className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
+                        Clear all
+                      </button>
+                    )}
                   </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    {notifications.map(n => (
-                      <div key={n.id} className="p-4 border-b border-[var(--border-primary)] hover:bg-[#21262D] cursor-pointer transition-colors">
-                        <p className="text-sm text-[var(--text-primary)]">{n.text}</p>
-                        <p className="text-xs text-[var(--text-tertiary)] mt-1">{n.time}</p>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <CheckCheck className="h-8 w-8 text-[var(--text-tertiary)] mx-auto mb-2" />
+                        <p className="text-sm text-[var(--text-tertiary)]">All caught up!</p>
                       </div>
-                    ))}
-                  </div>
-                  <div className="p-3 text-center">
-                    <button className="text-xs text-blue-400 hover:text-blue-300 transition-colors">View all notifications</button>
+                    ) : (
+                      notifications.map(n => (
+                        <div
+                          key={n.id}
+                          onClick={() => { markNotificationRead(n.id); if (n.bugId) navigate(`/dashboard/bugs/${n.bugId}`); setShowNotifications(false); }}
+                          className={`p-4 border-b border-[var(--border-secondary)] cursor-pointer transition-colors ${!n.read ? 'bg-blue-500/5 hover:bg-blue-500/10' : 'hover:bg-[#21262D]'}`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${!n.read ? 'bg-blue-500' : 'bg-transparent'}`} />
+                            <div>
+                              <p className={`text-sm ${!n.read ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]'}`}>{n.message}</p>
+                              <p className="text-xs text-[var(--text-tertiary)] mt-1">{formatTimeAgo(n.timestamp)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </>
@@ -93,13 +119,12 @@ export function Navbar() {
                     <p className="text-xs text-[var(--text-tertiary)]">{user?.email}</p>
                   </div>
                   <div className="p-1">
-                    <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#21262D] rounded-lg transition-colors">
-                      <UserIcon className="h-4 w-4" /> Profile
+                    <button onClick={() => { navigate('/dashboard/settings'); setShowMenu(false); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#21262D] rounded-lg transition-colors">
+                      <UserIcon className="h-4 w-4" /> Settings
                     </button>
-                    <button
-                      onClick={logout}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                    >
+                    <button onClick={() => { logout(); navigate('/login'); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
                       <LogOut className="h-4 w-4" /> Sign out
                     </button>
                   </div>

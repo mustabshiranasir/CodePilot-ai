@@ -41,9 +41,35 @@ export interface Bug {
   updatedAt: string;
 }
 
+export interface Comment {
+  id: string;
+  bugId: string;
+  author: string;
+  content: string;
+  mentions: string[];
+  createdAt: string;
+}
+
+export interface AIAnalysis {
+  summary: string;
+  possibleCause: string;
+  debuggingSteps: string[];
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  suggestedSolution: string;
+}
+
+export interface Notification {
+  id: string;
+  type: 'bug_assigned' | 'bug_updated' | 'comment' | 'mention' | 'status_change';
+  message: string;
+  bugId?: string;
+  read: boolean;
+  timestamp: string;
+}
+
 export interface Activity {
   id: string;
-  type: 'bug_created' | 'bug_resolved' | 'bug_assigned' | 'comment' | 'project_created' | 'member_joined';
+  type: 'bug_created' | 'bug_resolved' | 'bug_assigned' | 'comment' | 'project_created' | 'member_joined' | 'status_change' | 'priority_change';
   message: string;
   user: string;
   timestamp: string;

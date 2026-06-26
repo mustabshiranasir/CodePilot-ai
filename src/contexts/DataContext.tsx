@@ -1,17 +1,26 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
-import type { Project, Bug, ProjectMember } from '../types';
-
+import type { Project, Bug, ProjectMember, Comment, Notification, Activity } from '../types';
 
 interface DataContextType {
   projects: Project[];
   bugs: Bug[];
-  addProject: (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'bugCount' | 'memberCount' | 'progress' | 'members'> & { members: ProjectMember[]; progress: number }) => void;
+  comments: Comment[];
+  notifications: Notification[];
+  activities: Activity[];
+  addProject: (data: any) => void;
   updateProject: (id: string, data: Partial<Project>) => void;
   deleteProject: (id: string) => void;
-  addBug: (bug: Omit<Bug, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addBug: (data: any) => void;
   updateBug: (id: string, data: Partial<Bug>) => void;
   deleteBug: (id: string) => void;
   moveBug: (id: string, newStatus: Bug['status']) => void;
+  addComment: (bugId: string, author: string, content: string, mentions: string[]) => void;
+  deleteComment: (id: string) => void;
+  addNotification: (n: Omit<Notification, 'id' | 'read'>) => void;
+  markNotificationRead: (id: string) => void;
+  clearNotifications: () => void;
+  addActivity: (a: Omit<Activity, 'id'>) => void;
+  unreadCount: number;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -49,22 +58,49 @@ const initialBugs: Bug[] = [
   { id: '1413', title: 'File upload size limit not enforced', description: 'Backend does not enforce the 10MB file upload limit documented in the API spec.', status: 'todo', priority: 'medium', projectId: 'p2', assignee: 'Alex C.', dueDate: '2026-07-03', labels: ['backend', 'security', 'api'], attachments: [], reporter: 'David W.', createdAt: '2026-06-10', updatedAt: '2026-06-12' },
 ];
 
+const initialComments: Comment[] = [
+  { id: 'c1', bugId: '1424', author: 'Sarah K.', content: 'I noticed this happens after about 4 hours of uptime. Could be related to the new event batch processing module.', mentions: [], createdAt: '2026-06-24T10:30:00' },
+  { id: 'c2', bugId: '1424', author: 'Marcus J.', content: 'Looking at the heap dump now. @Alex C. can you check if you see similar patterns in staging?', mentions: ['Alex C.'], createdAt: '2026-06-24T11:15:00' },
+  { id: 'c3', bugId: '1424', author: 'Alex C.', content: 'Confirmed. Same pattern in staging. The issue is in the pipeline worker thread. Will push a fix shortly.', mentions: [], createdAt: '2026-06-24T12:00:00' },
+  { id: 'c4', bugId: '1419', author: 'Marcus J.', content: 'I think we need to implement WebSocket ping/pong with a 60s interval. @Alex C. what do you think?', mentions: ['Alex C.'], createdAt: '2026-06-18T09:00:00' },
+  { id: 'c5', bugId: '1419', author: 'Alex C.', content: 'Agreed. I will handle the server-side implementation if you can update the client library.', mentions: [], createdAt: '2026-06-18T09:30:00' },
+];
+
+const initialNotifications: Notification[] = [
+  { id: 'n1', type: 'bug_assigned', message: 'Bug #1424 assigned to Marcus J.', bugId: '1424', read: false, timestamp: '2026-06-24T08:00:00' },
+  { id: 'n2', type: 'comment', message: 'Sarah commented on Bug #1424', bugId: '1424', read: false, timestamp: '2026-06-24T10:30:00' },
+  { id: 'n3', type: 'mention', message: 'Marcus mentioned you in Bug #1419', bugId: '1419', read: false, timestamp: '2026-06-18T09:00:00' },
+  { id: 'n4', type: 'bug_updated', message: 'Bug #1422 moved to Testing', bugId: '1422', read: true, timestamp: '2026-06-23T14:00:00' },
+];
+
+const initialActivities: Activity[] = [
+  { id: 'a1', type: 'comment', message: 'Sarah K. commented on Bug #1424', user: 'Sarah K.', timestamp: '2026-06-24T10:30:00' },
+  { id: 'a2', type: 'bug_created', message: 'Alex C. reported Bug #1424', user: 'Alex C.', timestamp: '2026-06-24T08:00:00' },
+  { id: 'a3', type: 'bug_assigned', message: 'Bug #1423 assigned to Sarah K.', user: 'System', timestamp: '2026-06-23T09:00:00' },
+  { id: 'a4', type: 'status_change', message: 'Bug #1422 moved to Testing', user: 'Emily R.', timestamp: '2026-06-23T14:00:00' },
+  { id: 'a5', type: 'bug_resolved', message: 'Bug #1421 resolved by Marcus J.', user: 'Marcus J.', timestamp: '2026-06-22T16:00:00' },
+];
+
 export function DataProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [bugs, setBugs] = useState<Bug[]>(initialBugs);
+  const [comments, setComments] = useState<Comment[]>(initialComments);
+  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
+  const [activities, setActivities] = useState<Activity[]>(initialActivities);
 
-  const addProject = useCallback((data: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'bugCount' | 'memberCount' | 'progress' | 'members'> & { members: ProjectMember[]; progress: number }) => {
+  const addActivity = useCallback((a: Omit<Activity, 'id'>) => {
+    const newA: Activity = { ...a, id: `a${Date.now()}` };
+    setActivities(prev => [newA, ...prev]);
+  }, []);
+
+  const addProject = useCallback((data: any) => {
     const now = new Date().toISOString().split('T')[0];
     const newProject: Project = {
-      ...data,
-      id: `p${Date.now()}`,
-      bugCount: 0,
-      memberCount: data.members.length,
-      createdAt: now,
-      updatedAt: now,
+      ...data, id: `p${Date.now()}`, bugCount: 0, memberCount: data.members?.length || 0, createdAt: now, updatedAt: now,
     };
     setProjects(prev => [newProject, ...prev]);
-  }, []);
+    addActivity({ type: 'project_created', message: `Project "${data.name}" created`, user: 'You', timestamp: new Date().toISOString() });
+  }, [addActivity]);
 
   const updateProject = useCallback((id: string, data: Partial<Project>) => {
     setProjects(prev => prev.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString().split('T')[0] } : p));
@@ -75,36 +111,69 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setBugs(prev => prev.filter(b => b.projectId !== id));
   }, []);
 
-  const addBug = useCallback((data: Omit<Bug, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const addBug = useCallback((data: any) => {
     const now = new Date().toISOString();
     const newBug: Bug = {
-      ...data,
-      id: (Math.max(...bugs.map(b => parseInt(b.id)), 1400) + 1).toString(),
-      createdAt: now,
-      updatedAt: now,
+      ...data, id: (Math.max(...bugs.map(b => parseInt(b.id)), 1400) + 1).toString(), createdAt: now, updatedAt: now,
     };
     setBugs(prev => [newBug, ...prev]);
     setProjects(prev => prev.map(p => p.id === newBug.projectId ? { ...p, bugCount: p.bugCount + 1 } : p));
-  }, [bugs]);
+    addActivity({ type: 'bug_created', message: `Bug #${newBug.id} "${newBug.title}" reported`, user: data.reporter || 'You', timestamp: now });
+  }, [bugs, addActivity]);
 
   const updateBug = useCallback((id: string, data: Partial<Bug>) => {
     setBugs(prev => prev.map(b => b.id === id ? { ...b, ...data, updatedAt: new Date().toISOString() } : b));
-  }, []);
+    if (data.status) {
+      addActivity({ type: 'status_change', message: `Bug #${id} moved to ${data.status.replace('_', ' ')}`, user: 'You', timestamp: new Date().toISOString() });
+    }
+  }, [addActivity]);
 
   const deleteBug = useCallback((id: string) => {
     const bug = bugs.find(b => b.id === id);
     setBugs(prev => prev.filter(b => b.id !== id));
-    if (bug) {
-      setProjects(prev => prev.map(p => p.id === bug.projectId ? { ...p, bugCount: Math.max(0, p.bugCount - 1) } : p));
-    }
+    setComments(prev => prev.filter(c => c.bugId !== id));
+    if (bug) setProjects(prev => prev.map(p => p.id === bug.projectId ? { ...p, bugCount: Math.max(0, p.bugCount - 1) } : p));
   }, [bugs]);
 
   const moveBug = useCallback((id: string, newStatus: Bug['status']) => {
     setBugs(prev => prev.map(b => b.id === id ? { ...b, status: newStatus, updatedAt: new Date().toISOString() } : b));
+    addActivity({ type: 'status_change', message: `Bug #${id} moved to ${newStatus.replace('_', ' ')}`, user: 'You', timestamp: new Date().toISOString() });
+  }, [addActivity]);
+
+  const addComment = useCallback((bugId: string, author: string, content: string, mentions: string[]) => {
+    const newComment: Comment = { id: `c${Date.now()}`, bugId, author, content, mentions, createdAt: new Date().toISOString() };
+    setComments(prev => [newComment, ...prev]);
+    addActivity({ type: 'comment', message: `${author} commented on Bug #${bugId}`, user: author, timestamp: newComment.createdAt });
+    mentions.forEach(() => {
+      addNotification({ type: 'mention', message: `${author} mentioned you in Bug #${bugId}`, bugId, timestamp: new Date().toISOString() });
+    });
+  }, [addActivity]);
+
+  const deleteComment = useCallback((id: string) => {
+    setComments(prev => prev.filter(c => c.id !== id));
   }, []);
 
+  const addNotification = useCallback((n: Omit<Notification, 'id' | 'read'>) => {
+    const newN: Notification = { ...n, id: `n${Date.now()}`, read: false };
+    setNotifications(prev => [newN, ...prev]);
+  }, []);
+
+  const markNotificationRead = useCallback((id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  }, []);
+
+  const clearNotifications = useCallback(() => {
+    setNotifications([]);
+  }, []);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
   return (
-    <DataContext.Provider value={{ projects, bugs, addProject, updateProject, deleteProject, addBug, updateBug, deleteBug, moveBug }}>
+    <DataContext.Provider value={{
+      projects, bugs, comments, notifications, activities, unreadCount,
+      addProject, updateProject, deleteProject, addBug, updateBug, deleteBug, moveBug,
+      addComment, deleteComment, addNotification, markNotificationRead, clearNotifications, addActivity,
+    }}>
       {children}
     </DataContext.Provider>
   );

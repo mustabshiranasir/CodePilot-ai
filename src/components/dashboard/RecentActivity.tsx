@@ -4,13 +4,15 @@ import { Card } from '../ui/Card';
 import { formatTimeAgo } from '../../lib/utils';
 import type { Activity } from '../../types';
 
-const activityIcons = {
+const activityIcons: Record<string, { icon: any; color: string; bg: string }> = {
   bug_created: { icon: Bug, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
   bug_resolved: { icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-500/10' },
   bug_assigned: { icon: UserPlus, color: 'text-blue-400', bg: 'bg-blue-500/10' },
   comment: { icon: MessageSquare, color: 'text-purple-400', bg: 'bg-purple-500/10' },
   project_created: { icon: FolderKanban, color: 'text-orange-400', bg: 'bg-orange-500/10' },
   member_joined: { icon: GitCommit, color: 'text-pink-400', bg: 'bg-pink-500/10' },
+  status_change: { icon: GitCommit, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+  priority_change: { icon: GitCommit, color: 'text-orange-400', bg: 'bg-orange-500/10' },
 };
 
 const mockActivities: Activity[] = [
