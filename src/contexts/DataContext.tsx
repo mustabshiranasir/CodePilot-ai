@@ -180,7 +180,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addRepository = useCallback(async (data: any) => {
-    const created = await repositoryService.create({ ...data, ownerId: user?.id || '' });
+    if (!user?.teamId) throw new Error('No team assigned. Contact your admin.');
+    const created = await repositoryService.create({ ...data, ownerId: user.id, teamId: user.teamId });
     setRepositories(prev => [created, ...prev]);
     await addActivity({ type: 'repository_connected', message: `Repository "${data.name}" connected`, userId: user?.id || '', userName: user?.name, repositoryId: created.id });
   }, [user, addActivity]);
@@ -225,7 +226,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // Assign issues to actual team members by role
     let teamMembers: TeamMember[] = [];
     try {
-      teamMembers = await teamService.getAll();
+      teamMembers = await teamService.getAll(user.teamId);
       console.log(`[assign] Fetched ${teamMembers.length} team members`);
       teamMembers.forEach(m => console.log(`[assign]   "${m.name}" role="${m.role}" id="${m.id}"`));
     } catch (e) {

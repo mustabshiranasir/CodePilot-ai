@@ -8,7 +8,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string) => Promise<void>;
+  signup: (email: string, password: string, name: string, role?: string, teamPasscode?: string, teamName?: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -30,6 +30,7 @@ async function fetchProfile(userId: string): Promise<User | null> {
         name: authUser.user.user_metadata?.name as string || authUser.user.email?.split('@')[0] || 'Developer',
         avatar: '',
         role: 'Developer',
+        teamId: undefined,
       };
     }
     return null;
@@ -41,6 +42,7 @@ async function fetchProfile(userId: string): Promise<User | null> {
     name: data.name || data.email?.split('@')[0] || 'Developer',
     avatar: data.avatar || '',
     role: data.role || 'Developer',
+    teamId: data.team_id,
   };
 }
 
@@ -58,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: '',
         name: 'Developer',
         role: 'Developer',
+        teamId: undefined,
       });
     }
     setLoading(false);
@@ -100,12 +103,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signup = async (email: string, password: string, name: string) => {
+  const signup = async (email: string, password: string, name: string, role?: string, teamPasscode?: string, teamName?: string) => {
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { name } },
+      options: {
+        data: {
+          name,
+          ...(role && { role }),
+          ...(teamPasscode && { team_passcode: teamPasscode }),
+          ...(teamName && { team_name: teamName }),
+        },
+      },
     });
 
     if (error) {

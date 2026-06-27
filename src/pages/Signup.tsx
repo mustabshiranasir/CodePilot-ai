@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Code2, Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Code2, Mail, Lock, User, ArrowRight, Eye, EyeOff, Shield, Key, Users } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
+
+const roles = ['Developer', 'Lead Developer', 'Admin'];
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -13,13 +15,14 @@ export default function Signup() {
   const { addToast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'Developer', teamPasscode: '', teamName: '' });
+  const [joinMode, setJoinMode] = useState<'new' | 'join'>('new');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await signup(form.email, form.password, form.name);
+      await signup(form.email, form.password, form.name, form.role, joinMode === 'join' ? form.teamPasscode : '', form.teamName);
       addToast('success', 'Account created! Welcome to CodePilot.');
       navigate('/dashboard');
     } catch (err: any) {
@@ -88,6 +91,58 @@ export default function Signup() {
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">Role</label>
+              <div className="relative">
+                <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-tertiary)]" />
+                <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
+                  className="w-full rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] pl-9 pr-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {roles.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {form.role === 'Admin' ? (
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setJoinMode('new')}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all ${joinMode === 'new' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-[#21262D] text-[var(--text-tertiary)] border border-transparent hover:border-[var(--border-primary)]'}`}>
+                  <Users className="h-3.5 w-3.5 inline mr-1.5" /> New Team
+                </button>
+                <button type="button" onClick={() => setJoinMode('join')}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all ${joinMode === 'join' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-[#21262D] text-[var(--text-tertiary)] border border-transparent hover:border-[var(--border-primary)]'}`}>
+                  <Key className="h-3.5 w-3.5 inline mr-1.5" /> Join Team
+                </button>
+              </div>
+            ) : (
+              <div className="bg-[#21262D] rounded-lg p-3 border border-[var(--border-primary)]">
+                <p className="text-xs text-[var(--text-tertiary)] flex items-center gap-1.5">
+                  <Key className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                  Enter a team passcode to join an existing team. Only admins can create new teams.
+                </p>
+              </div>
+            )}
+
+            {joinMode === 'join' || form.role !== 'Admin' ? (
+              <Input
+                label="Team Passcode"
+                type="text"
+                placeholder="e.g. A1B2C3D4"
+                icon={<Key className="h-4 w-4" />}
+                value={form.teamPasscode}
+                onChange={e => setForm({ ...form, teamPasscode: e.target.value.toUpperCase() })}
+                required={form.role !== 'Admin'}
+              />
+            ) : (
+              <Input
+                label="Team Name"
+                type="text"
+                placeholder="e.g. My Team"
+                icon={<Users className="h-4 w-4" />}
+                value={form.teamName}
+                onChange={e => setForm({ ...form, teamName: e.target.value })}
+              />
+            )}
 
             <Button type="submit" className="w-full" loading={loading}>
               Create Account <ArrowRight className="h-4 w-4" />

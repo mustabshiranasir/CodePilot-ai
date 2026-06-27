@@ -1,6 +1,13 @@
 import { supabase } from '../supabase';
 import type { TeamMember } from '../../types';
 
+export interface TeamInfo {
+  id: string;
+  name: string;
+  passcode: string;
+  createdAt: string;
+}
+
 const mapProfile = (p: any): TeamMember => ({
   id: p.id,
   name: p.name || p.email?.split('@')[0] || 'Unknown',
@@ -11,8 +18,10 @@ const mapProfile = (p: any): TeamMember => ({
 });
 
 export const teamService = {
-  getAll: async () => {
-    const { data, error } = await supabase.from('profiles').select('*').order('name', { ascending: true });
+  getAll: async (teamId?: string) => {
+    let query = supabase.from('profiles').select('*').order('name', { ascending: true });
+    if (teamId) query = query.eq('team_id', teamId) as any;
+    const { data, error } = await query;
     if (error) throw error;
     return (data || []).map(mapProfile) as TeamMember[];
   },
@@ -44,5 +53,19 @@ export const teamService = {
   remove: async (id: string) => {
     const { error } = await supabase.from('profiles').delete().eq('id', id);
     if (error) throw error;
+  },
+  getTeam: async (teamId: string): Promise<TeamInfo | null> => {
+    const { data, error } = await supabase.from('teams').select('*').eq('id', teamId).single();
+    if (error) return null;
+    return { id: data.id, name: data.name, passcode: data.passcode, createdAt: data.created_at };
+  },
+  regeneratePasscode: async (teamId: string): Promise<string> => {
+    const newPasscode = await supabase.rpc('regenerate_team_passcode', { team_id: teamId }).then(r => r.data);
+    if (newPasscode) return newPasscode;
+    // Fallback: generate client-side and update directly
+    const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const { error } = await supabase.from('teams').update({ passcode: code }).eq('id', teamId);
+    if (error) throw error;
+    return code;
   },
 };

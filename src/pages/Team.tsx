@@ -14,7 +14,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import { useAuth } from '../contexts/AuthContext';
 import { useData } from '../contexts/DataContext';
-import { teamService } from '../lib/services/team';
+import { teamService, type TeamInfo } from '../lib/services/team';
 import { invitationService } from '../lib/services/invitations';
 import type { TeamMember, Invitation } from '../types';
 import { cn } from '../lib/utils';
@@ -35,22 +35,46 @@ export default function Team() {
   const [removingMember, setRemovingMember] = useState<TeamMember | null>(null);
   const [removingInvite, setRemovingInvite] = useState<Invitation | null>(null);
   const [inviteResult, setInviteResult] = useState<{ type: 'existing' | 'new' | 'error'; email: string; name: string } | null>(null);
+  const [teamInfo, setTeamInfo] = useState<TeamInfo | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
   const [search, setSearch] = useState('');
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [m, inv] = await Promise.all([
-        teamService.getAll(),
-        invitationService.getAll().catch(() => [] as Invitation[]),
+      const [m, inv, ti] = await Promise.all([
+        teamService.getAll(user?.teamId),
+        invitationService.getAll(user?.id).catch(() => [] as Invitation[]),
+        user?.teamId ? teamService.getTeam(user.teamId) : Promise.resolve(null),
       ]);
       setMembers(m);
       setInvitations(inv);
+      setTeamInfo(ti);
     } catch (err: any) {
       addToast('error', 'Failed to load team data');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRegeneratePasscode = async () => {
+    if (!user?.teamId || !teamInfo) return;
+    setRegenerating(true);
+    try {
+      const newCode = await teamService.regeneratePasscode(user.teamId);
+      setTeamInfo({ ...teamInfo, passcode: newCode });
+      addToast('success', `New team passcode: ${newCode}`);
+    } catch {
+      addToast('error', 'Failed to regenerate passcode');
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const copyPasscode = () => {
+    if (!teamInfo) return;
+    navigator.clipboard.writeText(teamInfo.passcode);
+    addToast('success', 'Passcode copied to clipboard');
   };
 
   useEffect(() => { loadData(); }, []);
@@ -89,20 +113,17 @@ export default function Team() {
             role: inviteForm.role,
             invitedBy: user.id,
           });
-          // Send email invite via Supabase Edge Function
-          invitationService.sendEmailInvite({
-            email: inviteForm.email,
-            name: inviteForm.name,
-            role: inviteForm.role,
-            invitedByName: user?.name || 'A team member',
-            invitationId: inv.id,
-          }).then(res => {
-            if (res?.skipped) addToast('info', 'Email not sent: RESEND_API_KEY not configured. Set it in Supabase Edge Function secrets.');
-            else addToast('success', `Invitation email sent to ${inviteForm.email}`);
-          }).catch(() => {
-            addToast('info', 'Invitation created but email delivery unavailable. Configure Resend + Supabase Edge Functions to send emails.');
-          });
-          const updatedInvites = await invitationService.getAll().catch(() => []);
+          // Open default email client with pre-filled invite
+          const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+          const signupUrl = `${appUrl}/signup?invitation=${inv.id}&email=${encodeURIComponent(inviteForm.email)}`;
+          const subject = encodeURIComponent(`You've been invited to join CodePilot AI`);
+          const body = encodeURIComponent(
+            `${user?.name || 'A team member'} has invited you to join their team as ${inviteForm.role}.\n\n` +
+            `Click the link below to accept:\n${signupUrl}\n\n` +
+            `This invitation expires in 30 days.`
+          );
+          window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(inviteForm.email)}&su=${subject}&body=${body}`, '_blank');
+          const updatedInvites = await invitationService.getAll(user?.id).catch(() => []);
           setInvitations(updatedInvites);
           setInviteResult({ type: 'new', email: inviteForm.email, name: inviteForm.name });
           addToast('success', `Invitation sent to ${inviteForm.email}`);
@@ -221,10 +242,30 @@ export default function Team() {
             Team
           </h1>
           <p className="text-[var(--text-secondary)] mt-1">Manage your team and invite collaborators</p>
+          {teamInfo && (
+            <div className="flex items-center gap-4 mt-2">
+              <span className="text-xs text-[var(--text-tertiary)]">Team: <strong className="text-[var(--text-primary)]">{teamInfo.name}</strong></span>
+              <span className="text-xs text-[var(--text-tertiary)] flex items-center gap-1">
+                Passcode: <code className="px-1.5 py-0.5 rounded bg-[#21262D] text-blue-400 font-mono text-xs">{teamInfo.passcode}</code>
+                {user?.role === 'Admin' && (
+                  <>
+                    <button onClick={copyPasscode} className="p-0.5 rounded hover:bg-[#30363D] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors" title="Copy passcode">
+                      <Copy className="h-3 w-3" />
+                    </button>
+                    <button onClick={handleRegeneratePasscode} disabled={regenerating} className="p-0.5 rounded hover:bg-[#30363D] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50" title="Generate new passcode">
+                      {regenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Shield className="h-3 w-3" />}
+                    </button>
+                  </>
+                )}
+              </span>
+            </div>
+          )}
         </div>
-        <Button onClick={() => { setShowInvite(true); setInviteResult(null); setInviteForm({ name: '', email: '', role: 'Developer' }); }}>
-          <UserPlus className="h-4 w-4" /> Invite Member
-        </Button>
+        {user?.role === 'Admin' && (
+          <Button onClick={() => { setShowInvite(true); setInviteResult(null); setInviteForm({ name: '', email: '', role: 'Developer' }); }}>
+            <UserPlus className="h-4 w-4" /> Invite Member
+          </Button>
+        )}
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
@@ -361,25 +402,27 @@ export default function Team() {
                           <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {}} title="Send message">
                             <Mail className="h-3.5 w-3.5" />
                           </Button>
-                          <div className="relative">
-                            <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setMenuOpen(menuOpen === member.id ? null : member.id)}>
-                              <MoreHorizontal className="h-3.5 w-3.5" />
-                            </Button>
-                            {menuOpen === member.id && (
-                              <>
-                                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(null)} />
-                                <div className="absolute right-0 top-8 w-52 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-2xl z-20 py-1 overflow-hidden">
-                                  <button onClick={() => { setEditMember(member); setMenuOpen(null); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#21262D] transition-colors"><Pencil className="h-3.5 w-3.5" /> Edit Role</button>
-                                  <div className="border-t border-[var(--border-secondary)] my-1 mx-2" />
-                                  {roles.filter(r => r !== member.role).slice(0, 4).map(r => (
-                                    <button key={r} onClick={() => handleRoleChange(member, r)} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#21262D] transition-colors"><Shield className="h-3.5 w-3.5" /> Set as {r}</button>
-                                  ))}
-                                  <div className="border-t border-[var(--border-secondary)] my-1 mx-2" />
-                                  <button onClick={() => { setRemovingMember(member); setMenuOpen(null); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors"><Trash2 className="h-3.5 w-3.5" /> Remove</button>
-                                </div>
-                              </>
-                            )}
-                          </div>
+                          {user?.role === 'Admin' && (
+                            <div className="relative">
+                              <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setMenuOpen(menuOpen === member.id ? null : member.id)}>
+                                <MoreHorizontal className="h-3.5 w-3.5" />
+                              </Button>
+                              {menuOpen === member.id && (
+                                <>
+                                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(null)} />
+                                  <div className="absolute right-0 top-8 w-52 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-2xl z-20 py-1 overflow-hidden">
+                                    <button onClick={() => { setEditMember(member); setMenuOpen(null); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#21262D] transition-colors"><Pencil className="h-3.5 w-3.5" /> Edit Role</button>
+                                    <div className="border-t border-[var(--border-secondary)] my-1 mx-2" />
+                                    {roles.filter(r => r !== member.role).slice(0, 4).map(r => (
+                                      <button key={r} onClick={() => handleRoleChange(member, r)} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#21262D] transition-colors"><Shield className="h-3.5 w-3.5" /> Set as {r}</button>
+                                    ))}
+                                    <div className="border-t border-[var(--border-secondary)] my-1 mx-2" />
+                                    <button onClick={() => { setRemovingMember(member); setMenuOpen(null); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors"><Trash2 className="h-3.5 w-3.5" /> Remove</button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </motion.div>
