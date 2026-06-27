@@ -13,8 +13,10 @@ const mapInvitation = (data: any): Invitation => ({
 });
 
 export const invitationService = {
-  getAll: async () => {
-    const { data, error } = await supabase.from('invitations').select('*').order('created_at', { ascending: false });
+  getAll: async (invitedBy?: string) => {
+    let query = supabase.from('invitations').select('*');
+    if (invitedBy) query = query.eq('invited_by', invitedBy);
+    const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
     return (data || []).map(mapInvitation);
   },

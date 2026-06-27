@@ -4,6 +4,7 @@ export interface User {
   name: string;
   avatar?: string;
   role?: string;
+  teamId?: string;
 }
 
 export interface TeamMember {
@@ -21,6 +22,7 @@ export interface Repository {
   url?: string;
   type: 'github' | 'upload';
   ownerId: string;
+  teamId: string;
   description?: string;
   language?: string;
   stars?: number;

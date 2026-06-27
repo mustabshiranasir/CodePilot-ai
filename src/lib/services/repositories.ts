@@ -7,6 +7,7 @@ const mapRepository = (d: any): Repository => ({
   url: d.url,
   type: d.type,
   ownerId: d.owner_id,
+  teamId: d.team_id,
   description: d.description,
   language: d.language,
   stars: d.stars,
@@ -29,6 +30,7 @@ export const repositoryService = {
   create: async (repo: Omit<Repository, 'id' | 'createdAt' | 'updatedAt'>) => {
     const { data, error } = await supabase.from('repositories').insert({
       name: repo.name, url: repo.url, type: repo.type, owner_id: repo.ownerId,
+      team_id: repo.teamId,
       description: repo.description, language: repo.language, stars: repo.stars, default_branch: repo.defaultBranch,
     }).select().single();
     if (error) throw error;

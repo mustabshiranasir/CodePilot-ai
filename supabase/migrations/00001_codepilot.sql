@@ -320,3 +320,150 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 8. Team isolation: restrict repository access to team members
+CREATE TABLE IF NOT EXISTS teams (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  passcode TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS team_id UUID REFERENCES teams(id) ON DELETE SET NULL;
+ALTER TABLE repositories ADD COLUMN IF NOT EXISTS team_id UUID;
+
+-- Backfill: create a default team for existing profiles without one
+DO $$
+DECLARE
+  p RECORD;
+  tid UUID;
+  default_passcode TEXT;
+BEGIN
+  FOR p IN SELECT * FROM profiles WHERE team_id IS NULL LOOP
+    default_passcode := upper(substr(gen_random_uuid()::text, 1, 8));
+    INSERT INTO teams (name, passcode)
+    VALUES (COALESCE(p.name, 'Team') || '''s Team', default_passcode)
+    RETURNING id INTO tid;
+    UPDATE profiles SET team_id = tid WHERE id = p.id;
+  END LOOP;
+END $$;
+
+-- Backfill: set team_id for existing repos from their owner's team
+UPDATE repositories r SET team_id = (
+  SELECT team_id FROM profiles WHERE id = r.owner_id
+) WHERE r.team_id IS NULL;
+
+ALTER TABLE repositories ALTER COLUMN team_id SET NOT NULL;
+
+-- Drop old permissive repository policies and recreate with team scoping
+DROP POLICY IF EXISTS view_repositories ON repositories;
+DROP POLICY IF EXISTS create_repositories ON repositories;
+DROP POLICY IF EXISTS update_repositories ON repositories;
+DROP POLICY IF EXISTS delete_repositories ON repositories;
+
+CREATE POLICY view_repositories ON repositories FOR SELECT
+  USING (team_id = (SELECT team_id FROM profiles WHERE id = auth.uid()));
+
+CREATE POLICY create_repositories ON repositories FOR INSERT WITH CHECK (
+  auth.uid() = owner_id
+  AND team_id = (SELECT team_id FROM profiles WHERE id = auth.uid())
+);
+
+CREATE POLICY update_repositories ON repositories FOR UPDATE
+  USING (team_id = (SELECT team_id FROM profiles WHERE id = auth.uid()))
+  WITH CHECK (team_id = (SELECT team_id FROM profiles WHERE id = auth.uid()));
+
+CREATE POLICY delete_repositories ON repositories FOR DELETE
+  USING (team_id = (SELECT team_id FROM profiles WHERE id = auth.uid()));
+
+-- Scope child tables by team as defense-in-depth
+DROP POLICY IF EXISTS view_scans ON code_scans;
+DROP POLICY IF EXISTS create_scans ON code_scans;
+DROP POLICY IF EXISTS update_scans ON code_scans;
+CREATE POLICY view_scans ON code_scans FOR SELECT
+  USING (repository_id IN (SELECT id FROM repositories WHERE team_id = (SELECT team_id FROM profiles WHERE id = auth.uid())));
+CREATE POLICY create_scans ON code_scans FOR INSERT WITH CHECK (
+  repository_id IN (SELECT id FROM repositories WHERE team_id = (SELECT team_id FROM profiles WHERE id = auth.uid()))
+);
+CREATE POLICY update_scans ON code_scans FOR UPDATE
+  USING (repository_id IN (SELECT id FROM repositories WHERE team_id = (SELECT team_id FROM profiles WHERE id = auth.uid())))
+  WITH CHECK (repository_id IN (SELECT id FROM repositories WHERE team_id = (SELECT team_id FROM profiles WHERE id = auth.uid())));
+
+DROP POLICY IF EXISTS view_issues ON issues;
+CREATE POLICY view_issues ON issues FOR SELECT
+  USING (repository_id IN (SELECT id FROM repositories WHERE team_id = (SELECT team_id FROM profiles WHERE id = auth.uid())));
+
+DROP POLICY IF EXISTS view_uploads ON project_uploads;
+DROP POLICY IF EXISTS create_uploads ON project_uploads;
+CREATE POLICY view_uploads ON project_uploads FOR SELECT
+  USING (repository_id IN (SELECT id FROM repositories WHERE team_id = (SELECT team_id FROM profiles WHERE id = auth.uid())));
+CREATE POLICY create_uploads ON project_uploads FOR INSERT WITH CHECK (
+  user_id = auth.uid()
+  AND repository_id IN (SELECT id FROM repositories WHERE team_id = (SELECT team_id FROM profiles WHERE id = auth.uid()))
+);
+
+-- Auto-profile trigger: join by team passcode or create new team
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = ''
+AS $$
+DECLARE
+  team_passcode TEXT;
+  team_name TEXT;
+  found_team_id UUID;
+  new_team_id UUID;
+  user_role TEXT;
+BEGIN
+  team_passcode := NEW.raw_user_meta_data->>'team_passcode';
+  team_name := COALESCE(NEW.raw_user_meta_data->>'team_name', COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)) || '''s Team');
+  user_role := COALESCE(NEW.raw_user_meta_data->>'role', 'Developer');
+
+  -- Try to find team by passcode
+  IF team_passcode IS NOT NULL AND team_passcode <> '' THEN
+    SELECT id INTO found_team_id FROM public.teams WHERE passcode = team_passcode LIMIT 1;
+  END IF;
+
+  -- Create new team if no passcode or passcode didn't match
+  IF found_team_id IS NULL THEN
+    IF user_role <> 'Admin' THEN
+      RAISE EXCEPTION 'Only an Admin can create a new team. Provide a valid team passcode or ask your admin for one.';
+    END IF;
+    INSERT INTO public.teams (name, passcode)
+    VALUES (team_name, upper(substr(gen_random_uuid()::text, 1, 8)))
+    RETURNING id INTO new_team_id;
+  END IF;
+
+  INSERT INTO public.profiles (id, name, email, avatar, role, team_id)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+    NEW.email,
+    '',
+    user_role,
+    COALESCE(found_team_id, new_team_id)
+  );
+
+  RETURN NEW;
+END;
+$$;
+
+-- RPC to regenerate team passcode (validates caller is team member)
+CREATE OR REPLACE FUNCTION public.regenerate_team_passcode(team_id UUID)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = ''
+AS $$
+DECLARE
+  new_code TEXT;
+  caller_team_id UUID;
+BEGIN
+  SELECT team_id INTO caller_team_id FROM public.profiles WHERE id = auth.uid();
+  IF caller_team_id IS NULL OR caller_team_id <> team_id THEN
+    RAISE EXCEPTION 'Not a member of this team';
+  END IF;
+  new_code := upper(substr(gen_random_uuid()::text, 1, 8));
+  UPDATE public.teams SET passcode = new_code WHERE id = team_id;
+  RETURN new_code;
+END;
+$$;

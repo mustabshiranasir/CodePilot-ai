@@ -1,32 +1,70 @@
-# React + TypeScript + Vite
+# CodePilot AI
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Automated code analysis platform with real-time scanning, team collaboration, and AI-powered fix recommendations.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Smart Scanning** — 11+ scanners detect code quality, security, performance, and architecture issues
+- **AI Analysis** — automatic root cause identification, explanations, and fix recommendations
+- **Team Isolation** — passcode-based team scoping; admins manage membership and roles
+- **Real-Time Updates** — live dashboards via Supabase subscriptions for scans, issues, and activity
+- **Upload Any Code** — ZIP file upload or GitHub URL fetch
+- **Team Metrics** — per-developer performance tracking and project analytics
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Layer | Technology |
+|---|---|
+| Frontend | React, TypeScript, Vite, Tailwind CSS, Framer Motion |
+| Backend | Supabase (PostgreSQL, Auth, Realtime, Edge Functions) |
+| Email | SMTP2GO (via Edge Function) |
+| Scan Engine | Custom AST parsing and pattern matching |
 
-## Expanding the Oxlint configuration
+## Getting Started
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+### Prerequisites
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+- Node.js 18+
+- Supabase project (linked)
+
+### Setup
+
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+### Environment Variables (`.env`)
+
+```
+VITE_SUPABASE_URL=your_project_url
+VITE_SUPABASE_ANON_KEY=your_anon_key
+```
+
+### Database
+
+Run `supabase/migrations/00001_codepilot.sql` in your Supabase SQL Editor.
+
+### Edge Function (Email Invites)
+
+```bash
+supabase functions deploy send-invite --no-verify-jwt
+supabase secrets set SMTP2GO_API_KEY=your_key FROM_EMAIL=sender@yourdomain.com
+```
+
+## Project Structure
+
+```
+src/
+├── components/ui/       # Reusable UI components (Card, Badge, Modal, etc.)
+├── contexts/            # Auth, Theme, Data contexts
+├── lib/services/        # Supabase service layer (scans, issues, team, etc.)
+├── lib/                 # scanEngine, supabase client, utils
+└── pages/               # Dashboard, Projects, Team, Analytics, Settings, etc.
+```
+
+## Build
+
+```bash
+npm run build    # tsc -b && vite build
+```
